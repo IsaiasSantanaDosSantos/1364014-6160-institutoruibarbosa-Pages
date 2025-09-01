@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <script>
+      function hiddenDiscountBox() {
+        function calcularParcela(valorStr, parcelas) {
+          var numeroLimpo = valorStr
+            .replace("R$", "")
+            .replace(/\./g, "")
+            .replace(",", ".")
+            .trim();
+
+          var valorNumerico = parseFloat(numeroLimpo);
+
+          if (isNaN(valorNumerico)) {
+            return null;
+          }
+
+          var resultado = valorNumerico / parcelas;
+
+          // Formata no padrão brasileiro: milhar com ponto, decimal com vírgula
+          var partes = resultado.toFixed(2).split(".");
+          var inteiro = partes[0];
+          var decimal = partes[1];
+          var inteiroFormatado = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+          return inteiroFormatado + "," + decimal;
+        }
+
+        var newPriceApi = document.querySelector(".newPriceApi");
+        var oldPriceApi = document.querySelector(".oldPriceApi");
+        var select = document.getElementById("parcelsCourse");
+
+        if (select && newPriceApi && oldPriceApi) {
+          var oldText = oldPriceApi.textContent;
+
+          console.log("newPriceApi: ", newPriceApi);
+          console.log("oldPriceApi: ", oldPriceApi);
+          // 🔹 Inicializa com a primeira opção do select
+          var valorInicialTexto = select.options[select.selectedIndex].text;
+          var valorInicialParcelas = parseInt(
+            select.options[select.selectedIndex].value,
+            10
+          );
+          oldPriceApi.textContent =
+            valorInicialParcelas +
+            "x R$ " +
+            calcularParcela(oldText, valorInicialParcelas);
+          newPriceApi.textContent = valorInicialTexto;
+
+          console.log("valorInicialTexto: ", valorInicialTexto);
+          // 🔸 Atualiza ao mudar
+          select.addEventListener("change", function () {
+            var optionSelecionada = select.options[select.selectedIndex];
+            var valorSelecionadoTexto = optionSelecionada.text;
+            var parcelas = parseInt(optionSelecionada.value, 10);
+
+            newPriceApi.textContent = valorSelecionadoTexto;
+            oldPriceApi.textContent =
+              parcelas + "x R$ " + calcularParcela(oldText, parcelas);
+          });
+        }
+
+        // Hide discount input
+        var formDiscount = document.querySelector(".formDiscount");
+        var couponBtn = document.querySelector(".couponBtn");
+        var congratulationBox = document.querySelector(
+          ".congratulationBox .congratulationText"
+        );
+        if (formDiscount && couponBtn && congratulationBox) {
+          formDiscount.style.display = "none";
+          couponBtn.style.display = "none";
+          congratulationBox.innerHTML =
+            "<b>Parabéns!</b> Este é o primeiro passo para transformar sua expectativa de carreira em realidade.";
+        }
+      }
+
+      // Discount text
+      var contentInfoCourse = document.querySelector(".contentInfoCourse");
+      var urlParams = new URLSearchParams(window.location.search);
+      var cParam = urlParams.get("c");
+
+      if (cParam === "20DIGITAL" && contentInfoCourse) {
+        var discountText = document.createElement("p");
+        discountText.style.cssText =
+          "font-size:15px;line-height:20px;margin: 10px auto 0;text-align:center;font-weight:600;max-width:90%;";
+        discountText.textContent =
+          "Desconto de 20% para pagamento até o vencimento da parcela";
+        contentInfoCourse.appendChild(discountText);
+        hiddenDiscountBox();
+      } else {
+        console.log("Produto sem desconto aplicado...");
+      }
+    </script>
+
+    <!-- Alterar o select -->
+    <script>
+      (function () {
+        try {
+          // 1) Checa o parâmetro da URL
+          var params = new URLSearchParams(location.search);
+          var code = params.get("c");
+          if (!code || code.toUpperCase() !== "20DIGITAL") return;
+
+          // 2) Configurações
+          var DISCOUNT = 0.2; // 20%
+          // Alvos: por id e por name (ajuste se necessário)
+          var SELECTORS = ["#parcelsCourse", 'select[name="parcelsCourse"]'];
+
+          // 3) Utilitários de moeda (pt-BR)
+          function parseBRL(str) {
+            // remove separador de milhar e troca vírgula por ponto
+            return Number(String(str).replace(/\./g, "").replace(",", "."));
+          }
+          function formatBRL(n) {
+            return new Intl.NumberFormat("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }).format(n);
+          }
+
+          // 4) Aplica desconto em uma option (se ainda não aplicado)
+          function updateOption(opt) {
+            if (!opt || opt.dataset.discountApplied === "1") return;
+
+            var txt = opt.textContent || "";
+            // Casa padrões como: "25x R$ 199,48" ou "25x de R$ 1.246,75"
+            var m = txt.match(/^\s*(\d+)\s*x.*?R\$\s*([\d\.\,]+)/i);
+            if (!m) return;
+
+            var parcelas = m[1];
+            var valorOriginal = parseBRL(m[2]);
+            if (!isFinite(valorOriginal)) return;
+
+            var valorComDesconto = valorOriginal * (1 - DISCOUNT);
+            var brl = formatBRL(valorComDesconto);
+
+            // Substitui somente a parte do valor em R$
+            var novoTxt = txt.replace(/R\$\s*[\d\.\,]+/i, brl);
+
+            opt.textContent = novoTxt;
+            // Não mexe no value (mantém número de parcelas)
+            opt.dataset.discountApplied = "1";
+          }
+
+          // 5) Aplica no(s) select(s)
+          function applyOnce() {
+            var found = false;
+            SELECTORS.forEach(function (sel) {
+              document.querySelectorAll(sel).forEach(function (select) {
+                found = true;
+                select.querySelectorAll("option").forEach(updateOption);
+              });
+            });
+            return found;
+          }
+
+          // Tenta imediatamente
+          if (applyOnce()) return;
+
+          // Se ainda não existe no DOM, tenta por um tempo (ex.: SPA/dinâmico)
+          var tries = 0,
+            maxTries = 40; // ~10s (250ms * 40)
+          var iv = setInterval(function () {
+            tries++;
+            if (applyOnce() || tries >= maxTries) clearInterval(iv);
+          }, 250);
+
+          // Observa mudanças no DOM por um curto período
+          var obs = new MutationObserver(applyOnce);
+          obs.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+          });
+          setTimeout(function () {
+            obs.disconnect();
+          }, 15000); // para observar por 15s
+        } catch (e) {
+          // silencioso para GTM
+        }
+      })();
+    </script>
+    <!-- Sem a função auto-executável -->
+    <script>
+      function changeSelect() {
+        try {
+          // 1) Checa o parâmetro da URL
+          var params = new URLSearchParams(location.search);
+          var code = params.get("c");
+          if (!code || code.toUpperCase() !== "20DIGITAL") return;
+
+          // 2) Configurações
+          var DISCOUNT = 0.2; // 20%
+          // Alvos: por id e por name (ajuste se necessário)
+          var SELECTORS = ["#parcelsCourse", 'select[name="parcelsCourse"]'];
+
+          // 3) Utilitários de moeda (pt-BR)
+          function parseBRL(str) {
+            // remove separador de milhar e troca vírgula por ponto
+            return Number(String(str).replace(/\./g, "").replace(",", "."));
+          }
+          function formatBRL(n) {
+            return new Intl.NumberFormat("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }).format(n);
+          }
+
+          // 4) Aplica desconto em uma option (se ainda não aplicado)
+          function updateOption(opt) {
+            if (!opt || opt.dataset.discountApplied === "1") return;
+
+            var txt = opt.textContent || "";
+            // Casa padrões como: "25x R$ 199,48" ou "25x de R$ 1.246,75"
+            var m = txt.match(/^\s*(\d+)\s*x.*?R\$\s*([\d\.\,]+)/i);
+            if (!m) return;
+
+            var parcelas = m[1];
+            var valorOriginal = parseBRL(m[2]);
+            if (!isFinite(valorOriginal)) return;
+
+            var valorComDesconto = valorOriginal * (1 - DISCOUNT);
+            var brl = formatBRL(valorComDesconto);
+
+            // Substitui somente a parte do valor em R$
+            var novoTxt = txt.replace(/R\$\s*[\d\.\,]+/i, brl);
+
+            opt.textContent = novoTxt;
+            // Não mexe no value (mantém número de parcelas)
+            opt.dataset.discountApplied = "1";
+          }
+
+          // 5) Aplica no(s) select(s)
+          function applyOnce() {
+            var found = false;
+            SELECTORS.forEach(function (sel) {
+              document.querySelectorAll(sel).forEach(function (select) {
+                found = true;
+                select.querySelectorAll("option").forEach(updateOption);
+              });
+            });
+            return found;
+          }
+
+          // Tenta imediatamente
+          if (applyOnce()) return;
+
+          // Se ainda não existe no DOM, tenta por um tempo (ex.: SPA/dinâmico)
+          var tries = 0,
+            maxTries = 40; // ~10s (250ms * 40)
+          var iv = setInterval(function () {
+            tries++;
+            if (applyOnce() || tries >= maxTries) clearInterval(iv);
+          }, 250);
+
+          // Observa mudanças no DOM por um curto período
+          var obs = new MutationObserver(applyOnce);
+          obs.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+          });
+          setTimeout(function () {
+            obs.disconnect();
+          }, 15000); // para observar por 15s
+        } catch (e) {
+          // silencioso para GTM
+        }
+      }
+      changeSelect();
+    </script>
+  </body>
+</html>
